@@ -12,8 +12,15 @@ let error = null;
 
 if (courseCode) {
   try {
-    course = await getCourseDetails(courseCode);
+    // Determine if it's a GY25 course based on the course code pattern
+    // For GY25: 4 letters + 1A10X or 1A20X or 00X
+    const isGy25 = /^[A-Z]{4}(?:1A(?:10|20)X|00X)$/.test(courseCode);
+    course = await getCourseDetails(courseCode, isGy25 ? 'gy25' : 'gy11');
   } catch (err) {
+    console.error('CourseDetails: Error fetching course', {
+      courseCode,
+      error: err.message || err
+    });
     error = err.message || 'Could not fetch course details';
   }
 }

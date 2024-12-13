@@ -3,11 +3,15 @@ import { defineConfig } from 'astro/config';
 import tailwind from "@astrojs/tailwind";
 
 
+import vercel from '@astrojs/vercel';
+
+
 // https://astro.build/config
 export default defineConfig({
   integrations: [tailwind()],
-  output: 'server',  // Enable server-side rendering
-  server: {
-    port: 4322
-  },
+
+  // Enable server-side rendering
+  output: 'server',
+
+  adapter: vercel()
 });

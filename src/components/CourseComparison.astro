@@ -14,8 +14,8 @@ let error = null;
 
 try {
   // Determine if courses are GY25 based on the course code pattern
-  const isGy25Course1 = /^[A-Z]{4}(?:1A(?:10|20)X|00X)$/.test(courseCode1);
-  const isGy25Course2 = /^[A-Z]{4}(?:1A(?:10|20)X|00X)$/.test(courseCode2);
+  const isGy25Course1 = courseCode1.endsWith('X');
+  const isGy25Course2 = courseCode2.endsWith('X');
 
   const [c1, c2] = await Promise.all([
     getCourseDetails(courseCode1, isGy25Course1 ? 'gy25' : 'gy11'),

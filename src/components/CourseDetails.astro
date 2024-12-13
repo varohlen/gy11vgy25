@@ -1,0 +1,159 @@
+---
+import { getCourseDetails } from '../lib/skolverket';
+
+interface Props {
+  courseCode: string;
+}
+
+const { courseCode } = Astro.props;
+
+let course = null;
+let error = null;
+
+if (courseCode) {
+  try {
+    course = await getCourseDetails(courseCode);
+  } catch (err) {
+    error = err.message || 'Could not fetch course details';
+  }
+}
+
+// Function to safely check if a property exists and includes a value
+const hasContent = (obj: any, prop: string) => obj && obj[prop] && typeof obj[prop] === 'string' && obj[prop].trim() !== '';
+
+// Function to set HTML content safely and remove unwanted sections
+const setHtml = (content: string) => {
+  if (!content) return { html: '' };
+  
+  let processedContent = content
+    .replace(/<p>&nbsp;<\/p>/g, '')
+    .replace(/<h[23]>Nivåer i [^<]+<\/h[23]>[\s\S]*?(?=<h[23]>|$)/, '')
+    .replace(/<h[23]>Kurser i ämnet<\/h[23]>[\s\S]*?(?=<h[23]>|$)/, '')
+    .replace(/\n\s*\n/g, '\n')
+    .trim();
+
+  return { html: processedContent };
+};
+
+---
+
+<div class="max-w-4xl mx-auto">
+  <div class="mb-6">
+    <button 
+      onclick="window.history.back()" 
+      class="bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-lg inline-flex items-center"
+    >
+      <span class="mr-2">←</span> Tillbaka
+    </button>
+  </div>
+
+  {error && (
+    <div class="bg-red-100 text-red-700 p-4 rounded-lg mb-4">
+      {error}
+    </div>
+  )}
+
+  {course && (
+    <div class="space-y-8">
+      <!-- Header -->
+      <header class="border-b pb-6">
+        <h1 class="text-4xl font-bold mb-2">
+          {hasContent(course, 'name') && course.name.includes(course.subjectParent?.subjectName || '') 
+            ? course.name 
+            : `${course.subjectParent?.subjectName}: ${course.name}`}
+        </h1>
+        <div class="flex gap-4 text-gray-600">
+          <p>Kurskod: {course.code}</p>
+          <p>•</p>
+          <p>{course.points} poäng</p>
+        </div>
+      </header>
+
+      <!-- Subject Purpose -->
+      {hasContent(course.subjectParent, 'subjectPurpose') && (
+        <details class="group" open>
+          <summary class="list-none cursor-pointer">
+            <div class="flex items-center gap-2 text-2xl font-semibold mb-4 hover:text-gray-600">
+              <svg 
+                class="w-6 h-6 transform transition-transform group-open:rotate-90" 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path 
+                  stroke-linecap="round" 
+                  stroke-linejoin="round" 
+                  stroke-width="2" 
+                  d="M9 5l7 7-7 7"
+                />
+              </svg>
+              Ämnets syfte
+            </div>
+          </summary>
+          <div 
+            class="prose prose-lg max-w-none pl-8"
+            set:html={setHtml(course.subjectParent.subjectPurpose).html}
+          />
+        </details>
+      )}
+
+      <!-- Central Content -->
+      {hasContent(course, 'centralContent') && hasContent(course.centralContent, 'text') && (
+        <details class="group" open>
+          <summary class="list-none cursor-pointer">
+            <div class="flex items-center gap-2 text-2xl font-semibold mb-4 hover:text-gray-600">
+              <svg 
+                class="w-6 h-6 transform transition-transform group-open:rotate-90" 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path 
+                  stroke-linecap="round" 
+                  stroke-linejoin="round" 
+                  stroke-width="2" 
+                  d="M9 5l7 7-7 7"
+                />
+              </svg>
+              Centralt innehåll
+            </div>
+          </summary>
+          <div 
+            class="prose prose-lg max-w-none pl-8"
+            set:html={setHtml(course.centralContent.text).html}
+          />
+        </details>
+      )}
+
+      <!-- Source Information -->
+      <details class="mt-8 p-4 bg-gray-50 rounded-lg">
+        <summary class="cursor-pointer font-semibold">Källa via Skolverkets API</summary>
+        <pre class="mt-4 text-sm whitespace-pre-wrap bg-white p-4 rounded-lg border">{JSON.stringify(course, null, 2)}</pre>
+      </details>
+    </div>
+  )}
+</div>
+
+<style>
+  /* Override some typography styles */
+  :global(.prose) {
+    max-width: none;
+  }
+  :global(.prose p) {
+    margin-top: 0.75em;
+    margin-bottom: 0.75em;
+  }
+  :global(.prose ul) {
+    margin-top: 0.5em;
+    margin-bottom: 0.5em;
+  }
+
+  /* Animation for the arrow icon */
+  .group summary::-webkit-details-marker {
+    display: none;
+  }
+  
+  .group svg {
+    transition: transform 0.2s ease-in-out;
+  }
+</style>

@@ -1,11 +1,456 @@
 ---
-import Welcome from '../components/Welcome.astro';
 import Layout from '../layouts/Layout.astro';
+import CourseComparison from '../components/CourseComparison.astro';
 
-// Welcome to Astro! Wondering what to do next? Check out the Astro documentation at https://docs.astro.build
-// Don't want to use any of this? Delete everything in this file, the `assets`, `components`, and `layouts` directories, and start fresh.
+// Get URL parameters for comparison
+const searchParams = Astro.url.searchParams;
+const gy11Code = searchParams.get('gy11');
+const gy25Code = searchParams.get('gy25');
+const error = searchParams.get('error');
+
+// Fetch courses
+const fetchCourses = async (timespan: string, schooltype: string = 'GY') => {
+  const date = new Date().toISOString().split('T')[0];
+  const response = await fetch(`https://api.skolverket.se/syllabus/v1/courses?timespan=${timespan}&date=${date}&schooltype=${schooltype}`);
+  const data = await response.json();
+  return data.courses || [];
+};
+
+// Fetch both GY11 and GY25 courses
+const [gy11Courses, gy25Courses] = await Promise.all([
+  fetchCourses('LATEST'),
+  fetchCourses('FUTURE')
+]);
+
+// Find selected courses if codes are provided
+const selectedGY11 = gy11Code ? gy11Courses.find(c => c.courseCode === gy11Code) : null;
+const selectedGY25 = gy25Code ? gy25Courses.find(c => c.courseCode === gy25Code) : null;
+
+// Sort GY11 courses alphabetically by name
+const sortedGy11Courses = gy11Courses.sort((a, b) => {
+  return a.courseName.toLowerCase().localeCompare(b.courseName.toLowerCase());
+});
+
+// Sort GY25 courses by subject first, then by name
+const sortedGy25Courses = gy25Courses.sort((a, b) => {
+  const subjectA = a.subjectParent?.subjectName || '';
+  const subjectB = b.subjectParent?.subjectName || '';
+  
+  // First compare subjects
+  const subjectCompare = subjectA.toLowerCase().localeCompare(subjectB.toLowerCase());
+  if (subjectCompare !== 0) return subjectCompare;
+  
+  // If subjects are the same, compare names
+  return a.courseName.toLowerCase().localeCompare(b.courseName.toLowerCase());
+});
+
+// Helper function to format course name for GY25
+const formatGy25CourseName = (course: any) => {
+  const subjectName = course.subjectParent?.subjectName || '';
+  const courseName = course.courseName || '';
+  
+  // If the course name already includes the subject name, just return it
+  if (courseName.toLowerCase().includes(subjectName.toLowerCase())) {
+    return courseName;
+  }
+  
+  // Otherwise, combine them without a colon
+  return `${subjectName} ${courseName}`;
+};
 ---
 
 <Layout>
-	<Welcome />
+  {selectedGY11 && selectedGY25 ? (
+    <CourseComparison courseCode1={selectedGY11.courseCode} courseCode2={selectedGY25.courseCode} course1={selectedGY11} course2={selectedGY25} />
+  ) : (
+    <main class="h-screen flex flex-col">
+      <!-- Fixed Header Section -->
+      <div class="bg-white border-b">
+        <div class="container mx-auto px-4 py-4">
+          <h1 class="text-3xl font-bold mb-4 text-center">Kursplan Jämförelse</h1>
+          
+          <!-- Comparison View -->
+          <div id="comparisonView" class="hidden mb-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <!-- Headers -->
+              <div class="text-center py-2 px-4 rounded-t-lg bg-gray-100 font-semibold">
+                GY11
+              </div>
+              <div class="text-center py-2 px-4 rounded-t-lg bg-gray-100 font-semibold">
+                GY25
+              </div>
+              
+              <!-- Course Cards -->
+              <div class="flex flex-col gap-4">
+                <div id="gy11Selected" class="hidden">
+                  <div class="bg-white rounded-lg shadow-sm border p-4">
+                    <div class="flex flex-col gap-3">
+                      <div class="flex items-center justify-between">
+                        <div class="flex-1">
+                          <span class="text-sm text-gray-500 block">Kurs</span>
+                          <span id="gy11SelectedName" class="font-medium text-lg"></span>
+                        </div>
+                        <a id="gy11DetailsLink" href="#" class="bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded-lg text-sm transition-colors">
+                          Detaljer
+                        </a>
+                      </div>
+                      <div class="grid grid-cols-2 gap-4">
+                        <div>
+                          <span class="text-sm text-gray-500 block">Kurskod</span>
+                          <span id="gy11SelectedCode" class="font-medium"></span>
+                        </div>
+                        <div>
+                          <span class="text-sm text-gray-500 block">Ämne</span>
+                          <span id="gy11SelectedSubject" class="font-medium"></span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="flex flex-col gap-4">
+                <div id="gy25Selected" class="hidden">
+                  <div class="bg-white rounded-lg shadow-sm border p-4">
+                    <div class="flex flex-col gap-3">
+                      <div class="flex items-center justify-between">
+                        <div class="flex-1">
+                          <span class="text-sm text-gray-500 block">Kurs</span>
+                          <span id="gy25SelectedName" class="font-medium text-lg"></span>
+                        </div>
+                        <a id="gy25DetailsLink" href="#" class="bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded-lg text-sm transition-colors">
+                          Detaljer
+                        </a>
+                      </div>
+                      <div class="grid grid-cols-2 gap-4">
+                        <div>
+                          <span class="text-sm text-gray-500 block">Kurskod</span>
+                          <span id="gy25SelectedCode" class="font-medium"></span>
+                        </div>
+                        <div>
+                          <span class="text-sm text-gray-500 block">Ämne</span>
+                          <span id="gy25SelectedSubject" class="font-medium"></span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Compare Button -->
+            <div class="text-center mt-6">
+              <button 
+                type="button"
+                id="compareButton"
+                class="bg-blue-600 text-white px-8 py-3 rounded-lg shadow-lg hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed font-medium text-lg"
+                disabled
+              >
+                Jämför kurser
+              </button>
+            </div>
+          </div>
+          
+          <!-- Search Bar -->
+          <div class="mb-4">
+            <input 
+              type="text" 
+              id="searchInput"
+              placeholder="Sök efter kurs..."
+              class="w-full p-2 border rounded-lg"
+            />
+          </div>
+
+          <!-- Course List Headers -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-4">
+            <h2 class="text-2xl font-semibold flex items-center">
+              <span>Kurser i GY11</span>
+              <span class="text-sm text-gray-500 ml-2">({sortedGy11Courses.length} kurser)</span>
+            </h2>
+            <h2 class="text-2xl font-semibold flex items-center">
+              <span>Kurser i GY25</span>
+              <span class="text-sm text-gray-500 ml-2">({sortedGy25Courses.length} kurser)</span>
+            </h2>
+          </div>
+
+          <!-- Course Lists -->
+          <div class="flex-1 overflow-hidden">
+            <div class="container mx-auto h-full">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-8 h-full">
+                <!-- GY11 Courses -->
+                <div class="overflow-y-auto h-full pr-2">
+                  <div class="space-y-2" id="gy11List">
+                    {sortedGy11Courses.map((course) => (
+                      <div 
+                        class="course-item bg-white p-3 rounded-lg hover:shadow-md cursor-pointer transition-all duration-200 border border-gray-100"
+                        data-course-code={course.courseCode}
+                        data-course-type="gy11"
+                        data-course-name={course.courseName}
+                        data-course-points={course.coursePoints}
+                        data-subject={course.subjectParent?.subjectName || ''}
+                      >
+                        <div class="flex justify-between items-center">
+                          <span class="font-medium">{course.courseName}</span>
+                          <span class="text-sm text-gray-500">{course.courseCode}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <!-- GY25 Courses -->
+                <div class="overflow-y-auto h-full pr-2">
+                  <div class="space-y-2" id="gy25List">
+                    {sortedGy25Courses.map((course) => (
+                      <div 
+                        class="course-item bg-white p-3 rounded-lg hover:shadow-md cursor-pointer transition-all duration-200 border border-gray-100"
+                        data-course-code={course.courseCode}
+                        data-course-type="gy25"
+                        data-course-name={formatGy25CourseName(course)}
+                        data-course-points={course.coursePoints}
+                        data-subject={course.subjectParent?.subjectName || ''}
+                      >
+                        <div class="flex justify-between items-center">
+                          <span class="font-medium">{formatGy25CourseName(course)}</span>
+                          <span class="text-sm text-gray-500">{course.courseCode}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Scrollable Course Lists -->
+      <div class="flex-1 overflow-hidden">
+        <div class="container mx-auto px-4 h-full">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-8 h-full">
+            <!-- GY11 Courses -->
+            <div class="overflow-y-auto h-full pr-2">
+              <div class="space-y-2" id="gy11List">
+                {sortedGy11Courses.map((course) => (
+                  <div 
+                    class="course-item p-3 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors duration-200"
+                    data-course-code={course.courseCode}
+                    data-course-type="gy11"
+                    data-course-name={course.courseName}
+                    data-course-points={course.coursePoints}
+                    data-subject={course.subjectParent?.subjectName || ''}
+                  >
+                    <div class="flex justify-between items-center">
+                      <span>{course.courseName}</span>
+                      <span class="text-sm text-gray-500">{course.courseCode}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <!-- GY25 Courses -->
+            <div class="overflow-y-auto h-full pr-2">
+              <div class="space-y-2" id="gy25List">
+                {sortedGy25Courses.map((course) => (
+                  <div 
+                    class="course-item p-3 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors duration-200"
+                    data-course-code={course.courseCode}
+                    data-course-type="gy25"
+                    data-course-name={formatGy25CourseName(course)}
+                    data-course-points={course.coursePoints}
+                    data-subject={course.subjectParent?.subjectName || ''}
+                  >
+                    <div class="flex justify-between items-center">
+                      <span>{formatGy25CourseName(course)}</span>
+                      <span class="text-sm text-gray-500">{course.courseCode}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  )}
 </Layout>
+
+<script>
+  // Global variables
+  let selectedGY11 = null;
+  let selectedGY25 = null;
+  let searchInput = null;
+  let comparisonView = null;
+  let gy11Selected = null;
+  let gy25Selected = null;
+  let gy11SelectedName = null;
+  let gy25SelectedName = null;
+  let gy11DetailsLink = null;
+  let gy25DetailsLink = null;
+  let gy11SelectedCode = null;
+  let gy25SelectedCode = null;
+  let gy11SelectedSubject = null;
+  let gy25SelectedSubject = null;
+  let compareButton = null;
+
+  // Initialize DOM elements
+  function initializeElements() {
+    searchInput = document.getElementById('searchInput');
+    comparisonView = document.getElementById('comparisonView');
+    gy11Selected = document.getElementById('gy11Selected');
+    gy25Selected = document.getElementById('gy25Selected');
+    gy11SelectedName = document.getElementById('gy11SelectedName');
+    gy25SelectedName = document.getElementById('gy25SelectedName');
+    gy11DetailsLink = document.getElementById('gy11DetailsLink');
+    gy25DetailsLink = document.getElementById('gy25DetailsLink');
+    gy11SelectedCode = document.getElementById('gy11SelectedCode');
+    gy25SelectedCode = document.getElementById('gy25SelectedCode');
+    gy11SelectedSubject = document.getElementById('gy11SelectedSubject');
+    gy25SelectedSubject = document.getElementById('gy25SelectedSubject');
+    compareButton = document.getElementById('compareButton');
+  }
+
+  function updateComparisonView() {
+    if (selectedGY11 || selectedGY25) {
+      comparisonView?.classList.remove('hidden');
+    } else {
+      comparisonView?.classList.add('hidden');
+    }
+
+    if (selectedGY11) {
+      gy11Selected?.classList.remove('hidden');
+    } else {
+      gy11Selected?.classList.add('hidden');
+    }
+
+    if (selectedGY25) {
+      gy25Selected?.classList.remove('hidden');
+    } else {
+      gy25Selected?.classList.add('hidden');
+    }
+  }
+
+  function updateCompareButton() {
+    if (!compareButton) return;
+    compareButton.disabled = !(selectedGY11 && selectedGY25);
+  }
+
+  function updateCourseSelection(courseType, courseCode, courseName, courseElement) {
+    console.log('Updating course selection:', { courseType, courseCode, courseName });
+    
+    // Get current selection state
+    const wasSelected = (courseType === 'gy11' && selectedGY11 === courseCode) ||
+                       (courseType === 'gy25' && selectedGY25 === courseCode);
+
+    // Remove previous selection
+    document.querySelectorAll(`.course-item[data-course-type="${courseType}"]`)
+      .forEach(item => item.classList.remove('bg-gray-50', 'border-gray-300', 'shadow-sm'));
+
+    // Toggle selection
+    if (wasSelected) {
+      // Deselect
+      if (courseType === 'gy11') {
+        selectedGY11 = null;
+      } else {
+        selectedGY25 = null;
+      }
+    } else {
+      // Select new course
+      const selectedItem = document.querySelector(`.course-item[data-course-type="${courseType}"][data-course-code="${courseCode}"]`);
+      selectedItem?.classList.add('bg-gray-50', 'border-gray-300', 'shadow-sm');
+
+      if (courseType === 'gy11') {
+        selectedGY11 = courseCode;
+        if (gy11SelectedName) gy11SelectedName.textContent = courseName;
+        if (gy11SelectedCode) gy11SelectedCode.textContent = courseCode;
+        if (gy11DetailsLink) gy11DetailsLink.href = `/courses/${courseCode}`;
+        // Get subject from the course element's dataset
+        const subject = courseElement.dataset.subject || 'N/A';
+        if (gy11SelectedSubject) gy11SelectedSubject.textContent = subject;
+      } else {
+        selectedGY25 = courseCode;
+        if (gy25SelectedName) gy25SelectedName.textContent = courseName;
+        if (gy25SelectedCode) gy25SelectedCode.textContent = courseCode;
+        if (gy25DetailsLink) gy25DetailsLink.href = `/courses/${courseCode}`;
+        // Get subject from the course element's dataset
+        const subject = courseElement.dataset.subject || 'N/A';
+        if (gy25SelectedSubject) gy25SelectedSubject.textContent = subject;
+      }
+    }
+
+    updateComparisonView();
+    updateCompareButton();
+  }
+
+  function handleCourseClick(event) {
+    const courseItem = event.target.closest('.course-item');
+    if (!courseItem) return;
+
+    const courseType = courseItem.dataset.courseType;
+    const courseCode = courseItem.dataset.courseCode;
+    const courseName = courseItem.dataset.courseName;
+    
+    if (courseType && courseCode && courseName) {
+      updateCourseSelection(courseType, courseCode, courseName, courseItem);
+    }
+  }
+
+  function setupEventListeners() {
+    // Search functionality
+    searchInput?.addEventListener('input', (e) => {
+      const searchTerm = e.target.value.toLowerCase();
+      
+      document.querySelectorAll('.course-item').forEach(item => {
+        const courseName = item.querySelector('span')?.textContent?.toLowerCase() || '';
+        const courseCode = item.dataset.courseCode?.toLowerCase() || '';
+        
+        if (courseName.includes(searchTerm) || courseCode.includes(searchTerm)) {
+          item.style.display = 'block';
+        } else {
+          item.style.display = 'none';
+        }
+      });
+    });
+
+    // Course selection using event delegation
+    document.getElementById('gy11List')?.addEventListener('click', handleCourseClick);
+    document.getElementById('gy25List')?.addEventListener('click', handleCourseClick);
+
+    // Compare button
+    compareButton?.addEventListener('click', () => {
+      if (selectedGY11 && selectedGY25) {
+        window.location.href = `/?gy11=${selectedGY11}&gy25=${selectedGY25}`;
+      }
+    });
+  }
+
+  // Initialize when DOM is loaded
+  document.addEventListener('DOMContentLoaded', () => {
+    console.log('DOM loaded');
+    initializeElements();
+    setupEventListeners();
+  });
+
+  // Handle page transitions
+  document.addEventListener('astro:page-load', () => {
+    console.log('Page loaded');
+    selectedGY11 = null;
+    selectedGY25 = null;
+    
+    initializeElements();
+    updateCompareButton();
+    updateComparisonView();
+    
+    // Clear any visual selections
+    document.querySelectorAll('.course-item')
+      .forEach(item => item.classList.remove('bg-gray-50', 'border-gray-300', 'shadow-sm'));
+
+    // Clear search input
+    if (searchInput) {
+      searchInput.value = '';
+    }
+
+    setupEventListeners();
+  });
+</script>

@@ -1,0 +1,19 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CourseDetails from '../../components/CourseDetails.astro';
+
+// This tells Astro that this route should be generated at runtime
+export const prerender = false;
+
+const { coursecode } = Astro.params;
+
+if (!coursecode) {
+  return Astro.redirect('/');
+}
+---
+
+<Layout>
+  <main class="container mx-auto px-4 py-8">
+    <CourseDetails courseCode={coursecode} />
+  </main>
+</Layout>
